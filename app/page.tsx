@@ -1,65 +1,253 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect, useMemo } from 'react';
+import './globals.css';
 
-export default function Home() {
+interface MacroItem {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+}
+
+interface DayLog {
+  targetPreset?: string;
+  items: MacroItem[];
+}
+
+type TrackerData = Record<string, DayLog>;
+
+// Target breakdown definitions based on user parameters
+const PRESETS: Record<string, { label: string; cals: number; p: number; c: number; f: number }> = {
+  rest: { label: "Rest Day (2050 kcal)", cals: 2050, p: 140, c: 230, f: 70 },
+  train: { label: "Train Day (2400 kcal)", cals: 2400, p: 150, c: 280, f: 76 },
+  active: { label: "Active Rest (2250 kcal)", cals: 2250, p: 140, c: 255, f: 74 },
+};
+
+export default function MacroTracker() {
+  const [data, setData] = useState<TrackerData>({});
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [alertMsg, setAlertMsg] = useState("");
+
+  // Form input states
+  const [foodName, setFoodName] = useState("");
+  const [cals, setCals] = useState("");
+  const [prot, setProt] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fats, setFats] = useState("");
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsSyncing(true);
+      try {
+        const res = await fetch('/api/sync');
+        const parsed = await res.json();
+        setData(parsed);
+      } catch (e) {
+        setAlertMsg("Cloud fetch failed.");
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const persist = async (newData: TrackerData) => {
+    setData(newData);
+    setIsSyncing(true);
+    try {
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData),
+      });
+    } catch (e) {
+      setAlertMsg("Cloud save failed!");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Smart Input Side-Effects: Math calculation engine 
+  const updateMacrosAndRecalculateCals = (p: string, c: string, f: string) => {
+    setProt(p);
+    setCarbs(c);
+    setFats(f);
+    
+    const pNum = Number(p) || 0;
+    const cNum = Number(c) || 0;
+    const fNum = Number(f) || 0;
+
+    // Guaranteed macro calculation formula
+    const targetCals = (pNum * 4) + (cNum * 4) + (fNum * 9);
+    setCals(targetCals > 0 ? targetCals.toString() : "");
+  };
+
+  const getDayTotals = (dateStr: string) => {
+    const items = data[dateStr]?.items || [];
+    return items.reduce(
+      (acc, item) => {
+        acc.calories += Number(item.calories || 0);
+        acc.protein += Number(item.protein || 0);
+        acc.carbs += Number(item.carbs || 0);
+        acc.fats += Number(item.fats || 0);
+        return acc;
+      },
+      { calories: 0, protein: 0, carbs: 0, fats: 0 }
+    );
+  };
+
+  const gridDates = useMemo(() => {
+    const dates = new Set(Object.keys(data));
+    const todayStr = new Date().toISOString().split('T')[0];
+    dates.add(todayStr);
+    
+    for (let i = 1; i <= 8; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.add(d.toISOString().split('T')[0]);
+    }
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [data]);
+
+  const handleAddItem = () => {
+    if (!selectedDate || !foodName) return;
+
+    const newItem: MacroItem = {
+      id: Math.random().toString(36).substring(7),
+      name: foodName,
+      calories: Number(cals) || 0,
+      protein: Number(prot) || 0,
+      carbs: Number(carbs) || 0,
+      fats: Number(fats) || 0,
+    };
+
+    const nextData = { ...data };
+    if (!nextData[selectedDate]) nextData[selectedDate] = { items: [] };
+    nextData[selectedDate].items = [...nextData[selectedDate].items, newItem];
+
+    persist(nextData);
+    setFoodName(""); setCals(""); setProt(""); setCarbs(""); setFats("");
+  };
+
+  const handleRemoveItem = (itemId: string) => {
+    if (!selectedDate) return;
+    const nextData = { ...data };
+    nextData[selectedDate].items = nextData[selectedDate].items.filter(i => i.id !== itemId);
+    persist(nextData);
+  };
+
+  const handlePresetChange = (presetKey: string) => {
+    if (!selectedDate) return;
+    const nextData = { ...data };
+    if (!nextData[selectedDate]) nextData[selectedDate] = { items: [] };
+    nextData[selectedDate].targetPreset = presetKey;
+    persist(nextData);
+  };
+
+  const currentPresetKey = selectedDate ? data[selectedDate]?.targetPreset || "" : "";
+  const currentPreset = PRESETS[currentPresetKey];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="app-container">
+      {alertMsg && <div className="alert-banner">{alertMsg}</div>}
+      
+      <div className="header-meta">
+        <h1 className="main-title">Hypertrophy Engine</h1>
+        <div className="sync-indicator">
+          <span className={`sync-dot ${isSyncing ? 'pulse' : ''}`} />
+          {isSyncing ? 'Syncing...' : 'Connected'}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+
+      {!selectedDate ? (
+        <>
+          <h2 className="section-title">Daily Tracker Dashboard</h2>
+          <div className="tiles-grid">
+            {gridDates.map(date => {
+              const totals = getDayTotals(date);
+              const hasItems = (data[date]?.items.length || 0) > 0;
+              return (
+                <div key={date} className={`tile-card ${hasItems ? 'active' : 'empty'}`} onClick={() => setSelectedDate(date)}>
+                  <div className="tile-date">{date}</div>
+                  <div className="tile-main-cal">{totals.calories} kcal</div>
+                  <div className="tile-macros">
+                    <span>P: {totals.protein}g</span>
+                    <span>C: {totals.carbs}g</span>
+                    <span>F: {totals.fats}g</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <button className="btn-ghost" onClick={() => setSelectedDate(null)}>← Back to Grid</button>
+          <h2 className="main-title">{selectedDate} Dashboard</h2>
+          
+          {/* Preset Selection & Day Summary Header */}
+          <div className="summary-banner">
+            <label className="field-label">Select Target Strategy Preset</label>
+            <select 
+              className="select-input" 
+              value={currentPresetKey} 
+              onChange={e => handlePresetChange(e.target.value)}
+            >
+              <option value="">No Strategy Selected</option>
+              <option value="rest">{PRESETS.rest.label}</option>
+              <option value="train">{PRESETS.train.label}</option>
+              <option value="active">{PRESETS.active.label}</option>
+            </select>
+
+            {(() => {
+              const totals = getDayTotals(selectedDate);
+              return (
+                <div className="summary-metrics">
+                  <div><strong>{totals.calories}</strong> {currentPreset ? `/ ${currentPreset.cals}` : ''} <small>kcal</small></div>
+                  <div>P: <strong>{totals.protein}g</strong> {currentPreset ? `/ ${currentPreset.p}g` : ''}</div>
+                  <div>C: <strong>{totals.carbs}g</strong> {currentPreset ? `/ ${currentPreset.c}g` : ''}</div>
+                  <div>F: <strong>{totals.fats}g</strong> {currentPreset ? `/ ${currentPreset.f}g` : ''}</div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Add Item Form Component */}
+          <div className="editor-card">
+            <label className="field-label">Log Custom Entry</label>
+            <input type="text" placeholder="Food item details" value={foodName} onChange={e => setFoodName(e.target.value)} className="text-input" />
+            
+            <div className="macro-input-row">
+              <input type="number" placeholder="Kcal" value={cals} onChange={e => setCals(e.target.value)} />
+              <input type="number" placeholder="P (g)" value={prot} onChange={e => updateMacrosAndRecalculateCals(e.target.value, carbs, fats)} />
+              <input type="number" placeholder="C (g)" value={carbs} onChange={e => updateMacrosAndRecalculateCals(prot, e.target.value, fats)} />
+              <input type="number" placeholder="F (g)" value={fats} onChange={e => updateMacrosAndRecalculateCals(prot, carbs, e.target.value)} />
+            </div>
+            
+            <button className="btn-primary" style={{ width: '100%', marginTop: '12px' }} onClick={handleAddItem}>Add Entry</button>
+          </div>
+
+          <h3 className="section-label">Logged Items</h3>
+          {(data[selectedDate]?.items || []).length === 0 ? (
+            <p className="empty-msg">No structural records found for today.</p>
+          ) : (
+            data[selectedDate].items.map(item => (
+              <div key={item.id} className="user-row-v2">
+                <div>
+                  <div className="time-main">{item.name}</div>
+                  <div className="time-secondary">
+                    {item.calories} kcal | P: {item.protein}g | C: {item.carbs}g | F: {item.fats}g
+                  </div>
+                </div>
+                <button className="btn-del" onClick={() => handleRemoveItem(item.id)}>Remove</button>
+              </div>
+            ))
+          )}
+        </>
+      )}
+    </main>
   );
 }
