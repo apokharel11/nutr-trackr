@@ -168,7 +168,7 @@ export default function MacroTracker() {
           <div className="tiles-grid">
             {gridDates.map(date => {
               const totals = getDayTotals(date);
-              const hasItems = (data[date]?.items.length || 0) > 0;
+              const hasItems = (data[date]?.items?.length || 0) > 0;
               return (
                 <div key={date} className={`tile-card ${hasItems ? 'active' : 'empty'}`} onClick={() => setSelectedDate(date)}>
                   <div className="tile-date">{date}</div>
