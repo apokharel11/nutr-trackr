@@ -18,7 +18,6 @@ interface DayLog {
 
 type TrackerData = Record<string, DayLog>;
 
-// Target breakdown definitions based on user parameters
 const PRESETS: Record<string, { label: string; cals: number; p: number; c: number; f: number }> = {
   rest: { label: "Rest Day (2050 kcal)", cals: 2050, p: 140, c: 230, f: 70 },
   train: { label: "Train Day (2400 kcal)", cals: 2400, p: 150, c: 280, f: 76 },
@@ -31,7 +30,11 @@ export default function MacroTracker() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [alertMsg, setAlertMsg] = useState("");
 
-  // Form input states
+  // Target creation input for explicit days
+  const [targetCreateDate, setTargetCreateDate] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Form inputs for logged item entries
   const [foodName, setFoodName] = useState("");
   const [cals, setCals] = useState("");
   const [prot, setProt] = useState("");
@@ -44,9 +47,17 @@ export default function MacroTracker() {
       try {
         const res = await fetch('/api/sync');
         const parsed = await res.json();
-        setData(parsed);
+        
+        // Defensive layer against unexpected error objects or connection failures
+        if (parsed && !parsed.error) {
+          setData(parsed);
+        } else {
+          setAlertMsg(parsed.error || "Unexpected JSON format.");
+          setData({});
+        }
       } catch (e) {
         setAlertMsg("Cloud fetch failed.");
+        setData({});
       } finally {
         setIsSyncing(false);
       }
@@ -70,23 +81,18 @@ export default function MacroTracker() {
     }
   };
 
-  // Smart Input Side-Effects: Math calculation engine 
   const updateMacrosAndRecalculateCals = (p: string, c: string, f: string) => {
-    setProt(p);
-    setCarbs(c);
-    setFats(f);
-    
+    setProt(p); setCarbs(c); setFats(f);
     const pNum = Number(p) || 0;
     const cNum = Number(c) || 0;
     const fNum = Number(f) || 0;
-
-    // Guaranteed macro calculation formula
     const targetCals = (pNum * 4) + (cNum * 4) + (fNum * 9);
     setCals(targetCals > 0 ? targetCals.toString() : "");
   };
 
   const getDayTotals = (dateStr: string) => {
-    const items = data[dateStr]?.items || [];
+    const dayData = data && typeof data === 'object' ? data[dateStr] : null;
+    const items = dayData?.items || [];
     return items.reduce(
       (acc, item) => {
         acc.calories += Number(item.calories || 0);
@@ -99,18 +105,34 @@ export default function MacroTracker() {
     );
   };
 
+  // Speed Dial logic: Only render explicitly populated keys + Today
   const gridDates = useMemo(() => {
-    const dates = new Set(Object.keys(data));
+    const dates = new Set<string>();
+    
+    // Always guarantee Today exists as a default empty slate tile
     const todayStr = new Date().toISOString().split('T')[0];
     dates.add(todayStr);
-    
-    for (let i = 1; i <= 8; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      dates.add(d.toISOString().split('T')[0]);
+
+    if (data && typeof data === 'object') {
+      Object.keys(data).forEach(key => {
+        if (data[key]) dates.add(key);
+      });
     }
+
     return Array.from(dates).sort((a, b) => b.localeCompare(a));
   }, [data]);
+
+  const handleCreateExplicitDay = () => {
+    if (!targetCreateDate) return;
+    const nextData = { ...data };
+    if (!nextData[targetCreateDate]) {
+      nextData[targetCreateDate] = { items: [] };
+    }
+    persist(nextData);
+    setSelectedDate(targetCreateDate);
+    setShowAddModal(false);
+    setTargetCreateDate("");
+  };
 
   const handleAddItem = () => {
     if (!selectedDate || !foodName) return;
@@ -135,8 +157,10 @@ export default function MacroTracker() {
   const handleRemoveItem = (itemId: string) => {
     if (!selectedDate) return;
     const nextData = { ...data };
-    nextData[selectedDate].items = nextData[selectedDate].items.filter(i => i.id !== itemId);
-    persist(nextData);
+    if (nextData[selectedDate]) {
+      nextData[selectedDate].items = nextData[selectedDate].items.filter(i => i.id !== itemId);
+      persist(nextData);
+    }
   };
 
   const handlePresetChange = (presetKey: string) => {
@@ -147,7 +171,7 @@ export default function MacroTracker() {
     persist(nextData);
   };
 
-  const currentPresetKey = selectedDate ? data[selectedDate]?.targetPreset || "" : "";
+  const currentPresetKey = selectedDate && data[selectedDate] ? data[selectedDate].targetPreset || "" : "";
   const currentPreset = PRESETS[currentPresetKey];
 
   return (
@@ -164,31 +188,63 @@ export default function MacroTracker() {
 
       {!selectedDate ? (
         <>
-          <h2 className="section-title">Daily Tracker Dashboard</h2>
-          <div className="tiles-grid">
-            {gridDates.map(date => {
-              const totals = getDayTotals(date);
-              const hasItems = (data[date]?.items?.length || 0) > 0;
-              return (
-                <div key={date} className={`tile-card ${hasItems ? 'active' : 'empty'}`} onClick={() => setSelectedDate(date)}>
-                  <div className="tile-date">{date}</div>
-                  <div className="tile-main-cal">{totals.calories} kcal</div>
-                  <div className="tile-macros">
-                    <span>P: {totals.protein}g</span>
-                    <span>C: {totals.carbs}g</span>
-                    <span>F: {totals.fats}g</span>
+          <h2 className="section-title">Speed Dial Grid</h2>
+          <div className="grid-scroll-container">
+            <div className="tiles-grid">
+              {gridDates.map(date => {
+                const totals = getDayTotals(date);
+                const todayStr = new Date().toISOString().split('T')[0];
+                const isToday = date === todayStr;
+                const hasItems = data[date] && data[date].items && data[date].items.length > 0;
+
+                return (
+                  <div 
+                    key={date} 
+                    className={`tile-card ${hasItems || isToday ? 'active' : 'empty'}`} 
+                    onClick={() => setSelectedDate(date)}
+                  >
+                    <div className="tile-date">{isToday ? "Today" : date}</div>
+                    <div className="tile-main-cal">{totals.calories} <span style={{fontSize: '0.65rem'}}>kcal</span></div>
+                    <div className="tile-macros">
+                      <span>P: {totals.protein}g</span>
+                      <span>C: {totals.carbs}g</span>
+                      <span>F: {totals.fats}g</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+
+              {/* speeddial style action trigger */}
+              <div className="tile-card add-new-tile" onClick={() => setShowAddModal(true)}>
+                <span className="add-plus-icon">+</span>
+                <span className="add-plus-text">Add Day</span>
+              </div>
+            </div>
           </div>
+
+          {showAddModal && (
+            <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <h3 style={{marginTop: 0, marginBottom: '10px'}}>Log Custom Date</h3>
+                <input 
+                  type="date" 
+                  className="text-input" 
+                  value={targetCreateDate} 
+                  onChange={e => setTargetCreateDate(e.target.value)} 
+                />
+                <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
+                  <button className="btn-primary" style={{flex: 1}} onClick={handleCreateExplicitDay}>Open Grid Slot</button>
+                  <button className="btn-ghost" style={{margin: 0}} onClick={() => setShowAddModal(false)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <>
           <button className="btn-ghost" onClick={() => setSelectedDate(null)}>← Back to Grid</button>
           <h2 className="main-title">{selectedDate} Dashboard</h2>
           
-          {/* Preset Selection & Day Summary Header */}
           <div className="summary-banner">
             <label className="field-label">Select Target Strategy Preset</label>
             <select 
@@ -215,7 +271,6 @@ export default function MacroTracker() {
             })()}
           </div>
 
-          {/* Add Item Form Component */}
           <div className="editor-card">
             <label className="field-label">Log Custom Entry</label>
             <input type="text" placeholder="Food item details" value={foodName} onChange={e => setFoodName(e.target.value)} className="text-input" />
@@ -231,7 +286,7 @@ export default function MacroTracker() {
           </div>
 
           <h3 className="section-label">Logged Items</h3>
-          {(data[selectedDate]?.items || []).length === 0 ? (
+          {(!data[selectedDate] || !data[selectedDate].items || data[selectedDate].items.length === 0) ? (
             <p className="empty-msg">No structural records found for today.</p>
           ) : (
             data[selectedDate].items.map(item => (

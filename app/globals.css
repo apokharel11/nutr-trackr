@@ -246,3 +246,66 @@ body {
   border-radius: 6px;
   margin-bottom: 15px;
 }
+
+/* Container updates to constrain height and allow responsive 3x3 scrolling */
+.grid-scroll-container {
+  max-height: 480px; 
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom minimal scrollbar style */
+.grid-scroll-container::-webkit-scrollbar {
+  width: 5px;
+}
+.grid-scroll-container::-webkit-scrollbar-track {
+  background: #121212;
+}
+.grid-scroll-container::-webkit-scrollbar-thumb {
+  background: #2c2c2e;
+  border-radius: 4px;
+}
+
+/* Speed Dial Add Card Custom Layout styling */
+.add-new-tile {
+  background: transparent !important;
+  border: 2px dashed #3c3c3e !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center !important;
+  color: #8e8e93;
+}
+.add-new-tile:hover {
+  border-color: #007bff !important;
+  color: #007bff;
+}
+.add-plus-icon {
+  font-size: 1.8rem;
+  font-weight: 300;
+  line-height: 1;
+}
+.add-plus-text {
+  font-size: 0.7rem;
+  font-weight: bold;
+  margin-top: 4px;
+}
+
+/* Modal Overlay Styles for Prompt Box */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.modal-content {
+  background: #1c1c1e;
+  border: 1px solid #2c2c2e;
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 320px;
+}
