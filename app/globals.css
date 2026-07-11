@@ -314,3 +314,72 @@ body {
   background-color: #3a351c !important;
   border-color: #ffc107 !important;
 }
+/* Additional layout selectors for strict CSS separation */
+.tile-denominator {
+  font-size: 0.7rem;
+  color: #888;
+  display: block;
+  margin: 2px 0;
+}
+
+.tile-unit {
+  font-size: 0.65rem;
+  display: block;
+}
+
+.summary-metrics-wrapper {
+  padding: 0;
+  border-radius: 6px;
+}
+
+.summary-metrics-wrapper.highlight-warn {
+  padding: 8px 4px;
+}
+
+.metric-label {
+  display: block;
+  font-size: 0.7rem;
+  color: #aaa;
+}
+
+.metric-value-large {
+  font-size: 1.05rem;
+}
+
+.approx-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-left: 2px;
+}
+
+.approx-checkbox-input {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.approx-checkbox-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  cursor: pointer;
+  user-select: none;
+}
+
+.btn-primary.disabled-btn {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Yellow outline wrapper for approximate entries */
+.approx-ring {
+  outline: 2px solid #ffc107;
+  outline-offset: -1px;
+}
+
+.approx-badge {
+  color: #ffc107;
+  font-size: 0.75rem;
+  margin-left: 4px;
+}
