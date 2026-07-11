@@ -177,6 +177,7 @@ body {
 }
 
 .btn-primary {
+  width: 100%;
   background: #007bff;
   color: white;
   border: none;
@@ -217,6 +218,23 @@ body {
   font-size: 0.75rem;
   color: #8e8e93;
   margin-top: 2px;
+}
+
+.action-button-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn-duplicate {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .btn-del {
@@ -358,6 +376,26 @@ body {
   cursor: pointer;
   width: 16px;
   height: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #000;
+  border: 1px solid #3c3c3e;
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:checked {
+    border-color: #007bff;
+    
+    &:after {
+      content: '✓';
+      color: #007bff;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+  }
 }
 
 .approx-checkbox-label {
@@ -365,6 +403,10 @@ body {
   color: #aaa;
   cursor: pointer;
   user-select: none;
+}
+
+.editor-action-spacer {
+  margin-top: 18px;
 }
 
 .btn-primary.disabled-btn {
@@ -396,6 +438,12 @@ body {
   border-bottom: 1px dotted #888;
 }
 
+.edit-indicator {
+  font-size: 0.7rem;
+  color: #007bff;
+  margin-left: 2px;
+}
+
 .inline-target-input {
   width: 42px;
   background: #2c2c2e;
@@ -406,4 +454,27 @@ body {
   font-size: 0.85rem;
   box-sizing: border-box;
   padding: 2px 0;
+}
+
+/* Desktop Spin Button Stripping Rules */
+.no-arrows-input {
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield; /* Keeps Firefox desktop happy */
+    appearance: textfield;      /* Modern standard property */
+  }
+}
+
+input.no-arrows-input::-webkit-outer-spin-button,
+input.no-arrows-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-arrows-input[type="number"] {
+  -moz-appearance: textfield;   /* Keeps Firefox desktop happy */
+  appearance: textfield;        /* Modern standard property */
 }

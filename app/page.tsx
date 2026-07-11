@@ -29,7 +29,6 @@ const PRESETS: Record<string, { label: string; cals: number }> = {
   active: { label: "Active Rest (2250 kcal)", cals: 2250 },
 };
 
-// Hard baseline floors (Precomputed Minimums)
 const MIN_CAL = 2050;
 const MIN_P = 155;
 const MIN_F = 60;
@@ -44,12 +43,10 @@ export default function MacroTracker() {
   const [targetCreateDate, setTargetCreateDate] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Editing UI Toggles for Targets
   const [isEditingP, setIsEditingP] = useState(false);
   const [isEditingC, setIsEditingC] = useState(false);
   const [isEditingF, setIsEditingF] = useState(false);
 
-  // Form State
   const [foodName, setFoodName] = useState("");
   const [cals, setCals] = useState("");
   const [prot, setProt] = useState("");
@@ -146,7 +143,6 @@ export default function MacroTracker() {
     let targetFat = MIN_F;
     let targetCarbs = MIN_C;
 
-    // Quasilinear Allocation: Adjust if delta is 200 calories or greater above floor
     if (baseCals >= MIN_CAL + 200) {
       const extraCalories = baseCals - MIN_CAL;
       
@@ -214,6 +210,15 @@ export default function MacroTracker() {
 
     persist(nextData);
     setFoodName(""); setCals(""); setProt(""); setCarbs(""); setFats(""); setIsApprox(false);
+  };
+
+  const handleDuplicateItem = (item: MacroItem) => {
+    setFoodName(item.name);
+    setCals(item.calories ? item.calories.toString() : "");
+    setProt(item.protein ? item.protein.toString() : "");
+    setCarbs(item.carbs ? item.carbs.toString() : "");
+    setFats(item.fats ? item.fats.toString() : "");
+    setIsApprox(!!item.isApproximate);
   };
 
   const handleRemoveItem = (itemId: string) => {
@@ -357,7 +362,7 @@ export default function MacroTracker() {
               <label className="field-label">Adjust Target Calories Dynamically</label>
               <input 
                 type="number" 
-                className="text-input" 
+                className="text-input no-arrows-input" 
                 placeholder={activeTargets ? `${activeTargets.calories} (Quasilinear Matrix)` : "Enter custom reference kcal target"}
                 value={currentDayConfig?.customCalorieTarget ?? ""}
                 onChange={e => handleCustomCalorieChange(e.target.value)}
@@ -373,7 +378,6 @@ export default function MacroTracker() {
                     <strong className="metric-value-large">{totals.calories}</strong> {activeTargets ? `/ ${activeTargets.calories}` : ''} <small>kcal</small>
                   </div>
 
-                  {/* On-The-Fly Protein Denominator */}
                   <div>
                     <span className="metric-label">Protein</span>
                     <div className="editable-macro-container">
@@ -383,7 +387,7 @@ export default function MacroTracker() {
                           / {isEditingP ? (
                             <input 
                               type="number" 
-                              className="inline-target-input"
+                              className="inline-target-input no-arrows-input"
                               value={currentDayConfig?.customProteinTarget ?? activeTargets.protein} 
                               onChange={e => handleMacroOverride('protein', e.target.value)}
                               onBlur={() => setIsEditingP(false)}
@@ -391,7 +395,7 @@ export default function MacroTracker() {
                             />
                           ) : (
                             <span className="inline-target-trigger" onClick={() => setIsEditingP(true)}>
-                              {activeTargets.protein}g ✏️
+                              {activeTargets.protein}g <span className="edit-indicator">[Edit]</span>
                             </span>
                           )}
                         </>
@@ -399,7 +403,6 @@ export default function MacroTracker() {
                     </div>
                   </div>
 
-                  {/* On-The-Fly Carbs Denominator */}
                   <div>
                     <span className="metric-label">Carbs</span>
                     <div className="editable-macro-container">
@@ -409,7 +412,7 @@ export default function MacroTracker() {
                           / {isEditingC ? (
                             <input 
                               type="number" 
-                              className="inline-target-input"
+                              className="inline-target-input no-arrows-input"
                               value={currentDayConfig?.customCarbsTarget ?? activeTargets.carbs} 
                               onChange={e => handleMacroOverride('carbs', e.target.value)}
                               onBlur={() => setIsEditingC(false)}
@@ -417,7 +420,7 @@ export default function MacroTracker() {
                             />
                           ) : (
                             <span className="inline-target-trigger" onClick={() => setIsEditingC(true)}>
-                              {activeTargets.carbs}g ✏️
+                              {activeTargets.carbs}g <span className="edit-indicator">[Edit]</span>
                             </span>
                           )}
                         </>
@@ -425,7 +428,6 @@ export default function MacroTracker() {
                     </div>
                   </div>
 
-                  {/* On-The-Fly Fats Denominator */}
                   <div>
                     <span className="metric-label">Fats</span>
                     <div className="editable-macro-container">
@@ -435,7 +437,7 @@ export default function MacroTracker() {
                           / {isEditingF ? (
                             <input 
                               type="number" 
-                              className="inline-target-input"
+                              className="inline-target-input no-arrows-input"
                               value={currentDayConfig?.customFatTarget ?? activeTargets.fats} 
                               onChange={e => handleMacroOverride('fats', e.target.value)}
                               onBlur={() => setIsEditingF(false)}
@@ -443,7 +445,7 @@ export default function MacroTracker() {
                             />
                           ) : (
                             <span className="inline-target-trigger" onClick={() => setIsEditingF(true)}>
-                              {activeTargets.fats}g ✏️
+                              {activeTargets.fats}g <span className="edit-indicator">[Edit]</span>
                             </span>
                           )}
                         </>
@@ -465,7 +467,7 @@ export default function MacroTracker() {
               className={`text-input ${entryHasBegun && !foodName.trim() ? 'highlight-warn' : ''}`} 
             />
             
-            <div className="macro-input-row">
+            <div className="macro-input-row no-arrows-input">
               <input 
                 type="number" 
                 placeholder="Kcal *" 
@@ -507,13 +509,15 @@ export default function MacroTracker() {
               </label>
             </div>
             
-            <button 
-              className={`btn-primary ${!isFormValid ? 'disabled-btn' : ''}`} 
-              disabled={!isFormValid}
-              onClick={handleAddItem}
-            >
-              Add Entry
-            </button>
+            <div className="editor-action-spacer">
+              <button 
+                className={`btn-primary ${!isFormValid ? 'disabled-btn' : ''}`} 
+                disabled={!isFormValid}
+                onClick={handleAddItem}
+              >
+                Add Entry
+              </button>
+            </div>
           </div>
 
           <h3 className="section-title">Logged Items</h3>
@@ -533,7 +537,10 @@ export default function MacroTracker() {
                     {item.calories} kcal | P: {item.protein}g | C: {item.carbs}g | F: {item.fats}g
                   </div>
                 </div>
-                <button className="btn-del" onClick={() => handleRemoveItem(item.id)}>Remove</button>
+                <div className="action-button-group">
+                  <button className="btn-duplicate" onClick={() => handleDuplicateItem(item)}>Duplicate</button>
+                  <button className="btn-del" onClick={() => handleRemoveItem(item.id)}>Remove</button>
+                </div>
               </div>
             ))
           )}
