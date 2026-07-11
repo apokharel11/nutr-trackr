@@ -383,3 +383,27 @@ body {
   font-size: 0.75rem;
   margin-left: 4px;
 }
+/* Dynamic Target Editing Additions */
+.editable-macro-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.inline-target-trigger {
+  cursor: pointer;
+  border-bottom: 1px dotted #888;
+}
+
+.inline-target-input {
+  width: 42px;
+  background: #2c2c2e;
+  color: #fff;
+  border: 1px solid #007bff;
+  text-align: center;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+  padding: 2px 0;
+}

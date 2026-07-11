@@ -15,21 +15,25 @@ interface MacroItem {
 interface DayLog {
   targetPreset?: string;
   customCalorieTarget?: number;
+  customProteinTarget?: number;
+  customCarbsTarget?: number;
+  customFatTarget?: number;
   items: MacroItem[];
 }
 
 type TrackerData = Record<string, DayLog>;
 
-const PRESETS: Record<string, { label: string; cals: number; p: number; c: number; f: number }> = {
-  rest: { label: "Rest Day (2050 kcal)", cals: 2050, p: 140, c: 230, f: 70 },
-  train: { label: "Train Day (2400 kcal)", cals: 2400, p: 150, c: 280, f: 76 },
-  active: { label: "Active Rest (2250 kcal)", cals: 2250, p: 140, c: 255, f: 74 },
+const PRESETS: Record<string, { label: string; cals: number }> = {
+  rest: { label: "Rest Day (2050 kcal)", cals: 2050 },
+  train: { label: "Train Day (2400 kcal)", cals: 2400 },
+  active: { label: "Active Rest (2250 kcal)", cals: 2250 },
 };
 
-const REF_CAL = 2300;
-const REF_P = 156;
-const REF_C = 284;
-const REF_F = 60;
+// Hard baseline floors (Precomputed Minimums)
+const MIN_CAL = 2050;
+const MIN_P = 155;
+const MIN_F = 60;
+const MIN_C = 220;
 
 export default function MacroTracker() {
   const [data, setData] = useState<TrackerData>({});
@@ -39,6 +43,11 @@ export default function MacroTracker() {
 
   const [targetCreateDate, setTargetCreateDate] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Editing UI Toggles for Targets
+  const [isEditingP, setIsEditingP] = useState(false);
+  const [isEditingC, setIsEditingC] = useState(false);
+  const [isEditingF, setIsEditingF] = useState(false);
 
   // Form State
   const [foodName, setFoodName] = useState("");
@@ -127,20 +136,40 @@ export default function MacroTracker() {
     const presetKey = dayData?.targetPreset || "";
     const activePreset = PRESETS[presetKey];
     
-    let baseCals = activePreset ? activePreset.cals : REF_CAL;
+    let baseCals = activePreset ? activePreset.cals : MIN_CAL;
     
     if (dayData?.customCalorieTarget) {
       baseCals = dayData.customCalorieTarget;
-    } else if (!activePreset) {
-      return null;
     }
 
-    const scaleFactor = baseCals / REF_CAL;
+    let targetProtein = MIN_P;
+    let targetFat = MIN_F;
+    let targetCarbs = MIN_C;
+
+    // Quasilinear Allocation: Adjust if delta is 200 calories or greater above floor
+    if (baseCals >= MIN_CAL + 200) {
+      const extraCalories = baseCals - MIN_CAL;
+      
+      const proteinBonus = Math.min(25, Math.floor(extraCalories * 0.05)); 
+      targetProtein = MIN_P + proteinBonus;
+
+      const fatBonus = Math.floor((extraCalories * 0.25) / 9);
+      targetFat = MIN_F + fatBonus;
+
+      const spentCals = (proteinBonus * 4) + (fatBonus * 9);
+      const remainingCalsForCarbs = extraCalories - spentCals;
+      targetCarbs = MIN_C + Math.round(remainingCalsForCarbs / 4);
+    } else {
+      targetProtein = MIN_P;
+      targetFat = MIN_F;
+      targetCarbs = MIN_C;
+    }
+
     return {
       calories: Math.round(baseCals),
-      protein: Math.round(activePreset ? activePreset.p * (baseCals / activePreset.cals) : REF_P * scaleFactor),
-      carbs: Math.round(activePreset ? activePreset.c * (baseCals / activePreset.cals) : REF_C * scaleFactor),
-      fats: Math.round(activePreset ? activePreset.f * (baseCals / activePreset.cals) : REF_F * scaleFactor),
+      protein: dayData?.customProteinTarget ?? targetProtein,
+      carbs: dayData?.customCarbsTarget ?? targetCarbs,
+      fats: dayData?.customFatTarget ?? targetFat,
     };
   };
 
@@ -218,6 +247,21 @@ export default function MacroTracker() {
     persist(nextData);
   };
 
+  const handleMacroOverride = (macro: 'protein' | 'carbs' | 'fats', val: string) => {
+    if (!selectedDate) return;
+    const nextData = { ...data };
+    if (!nextData[selectedDate]) nextData[selectedDate] = { items: [] };
+
+    const targetKey = macro === 'protein' ? 'customProteinTarget' : macro === 'carbs' ? 'customCarbsTarget' : 'customFatTarget';
+    
+    if (val === "") {
+      delete nextData[selectedDate][targetKey];
+    } else {
+      nextData[selectedDate][targetKey] = Number(val);
+    }
+    persist(nextData);
+  };
+
   const currentPresetKey = selectedDate && data[selectedDate] ? data[selectedDate].targetPreset || "" : "";
   const activeTargets = selectedDate ? getDayTargets(selectedDate) : null;
   const currentDayConfig = selectedDate ? data[selectedDate] : null;
@@ -263,8 +307,8 @@ export default function MacroTracker() {
                     </div>
                     <div className="tile-macros">
                       <span>P: {totals.protein}g{targets ? `/${targets.protein}g` : ''}</span>
-                      <span>C: {totals.carbs}g</span>
-                      <span>F: {totals.fats}g</span>
+                      <span>C: {totals.carbs}g{targets ? `/${targets.carbs}g` : ''}</span>
+                      <span>F: {totals.fats}g{targets ? `/${targets.fats}g` : ''}</span>
                     </div>
                   </div>
                 );
@@ -292,7 +336,10 @@ export default function MacroTracker() {
         </>
       ) : (
         <>
-          <button className="btn-ghost" onClick={() => setSelectedDate(null)}>← Back to Grid</button>
+          <button className="btn-ghost" onClick={() => {
+            setSelectedDate(null);
+            setIsEditingP(false); setIsEditingC(false); setIsEditingF(false);
+          }}>← Back to Grid</button>
           <h2 className="main-title">{selectedDate === systemTodayStr ? "Today" : selectedDate} Dashboard</h2>
           
           <div className="summary-banner">
@@ -300,9 +347,9 @@ export default function MacroTracker() {
               <label className="field-label">Select Target Strategy Preset</label>
               <select className="select-input" value={currentPresetKey} onChange={e => handlePresetChange(e.target.value)}>
                 <option value="">No Strategy Selected (Custom Engine)</option>
-                <option value="rest">{PRESETS.rest.label}</option>
-                <option value="train">{PRESETS.train.label}</option>
-                <option value="active">{PRESETS.active.label}</option>
+                <option value="rest">Rest Day (Pinned Baseline)</option>
+                <option value="train">Train Day (+350 kcal Scaled)</option>
+                <option value="active">Active Rest (+200 kcal Scaled)</option>
               </select>
             </div>
 
@@ -311,7 +358,7 @@ export default function MacroTracker() {
               <input 
                 type="number" 
                 className="text-input" 
-                placeholder={activeTargets ? `${activeTargets.calories} (Scaled Matrix)` : "Enter custom reference kcal target"}
+                placeholder={activeTargets ? `${activeTargets.calories} (Quasilinear Matrix)` : "Enter custom reference kcal target"}
                 value={currentDayConfig?.customCalorieTarget ?? ""}
                 onChange={e => handleCustomCalorieChange(e.target.value)}
               />
@@ -325,17 +372,83 @@ export default function MacroTracker() {
                     <span className="metric-label">Calories</span>
                     <strong className="metric-value-large">{totals.calories}</strong> {activeTargets ? `/ ${activeTargets.calories}` : ''} <small>kcal</small>
                   </div>
+
+                  {/* On-The-Fly Protein Denominator */}
                   <div>
                     <span className="metric-label">Protein</span>
-                    P: <strong>{totals.protein}g</strong> {activeTargets ? `/ ${activeTargets.protein}g` : ''}
+                    <div className="editable-macro-container">
+                      <strong>{totals.protein}g</strong>
+                      {activeTargets && (
+                        <>
+                          / {isEditingP ? (
+                            <input 
+                              type="number" 
+                              className="inline-target-input"
+                              value={currentDayConfig?.customProteinTarget ?? activeTargets.protein} 
+                              onChange={e => handleMacroOverride('protein', e.target.value)}
+                              onBlur={() => setIsEditingP(false)}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="inline-target-trigger" onClick={() => setIsEditingP(true)}>
+                              {activeTargets.protein}g ✏️
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
+
+                  {/* On-The-Fly Carbs Denominator */}
                   <div>
                     <span className="metric-label">Carbs</span>
-                    C: <strong>{totals.carbs}g</strong> {activeTargets ? `/ ${activeTargets.carbs}g` : ''}
+                    <div className="editable-macro-container">
+                      <strong>{totals.carbs}g</strong>
+                      {activeTargets && (
+                        <>
+                          / {isEditingC ? (
+                            <input 
+                              type="number" 
+                              className="inline-target-input"
+                              value={currentDayConfig?.customCarbsTarget ?? activeTargets.carbs} 
+                              onChange={e => handleMacroOverride('carbs', e.target.value)}
+                              onBlur={() => setIsEditingC(false)}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="inline-target-trigger" onClick={() => setIsEditingC(true)}>
+                              {activeTargets.carbs}g ✏️
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
+
+                  {/* On-The-Fly Fats Denominator */}
                   <div>
                     <span className="metric-label">Fats</span>
-                    F: <strong>{totals.fats}g</strong> {activeTargets ? `/ ${activeTargets.fats}g` : ''}
+                    <div className="editable-macro-container">
+                      <strong>{totals.fats}g</strong>
+                      {activeTargets && (
+                        <>
+                          / {isEditingF ? (
+                            <input 
+                              type="number" 
+                              className="inline-target-input"
+                              value={currentDayConfig?.customFatTarget ?? activeTargets.fats} 
+                              onChange={e => handleMacroOverride('fats', e.target.value)}
+                              onBlur={() => setIsEditingF(false)}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="inline-target-trigger" onClick={() => setIsEditingF(true)}>
+                              {activeTargets.fats}g ✏️
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
