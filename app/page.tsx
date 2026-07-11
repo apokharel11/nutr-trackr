@@ -30,16 +30,20 @@ export default function MacroTracker() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [alertMsg, setAlertMsg] = useState("");
 
-  // Target creation input for explicit days
   const [targetCreateDate, setTargetCreateDate] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Form inputs for logged item entries
+  // Decoupled Form State
   const [foodName, setFoodName] = useState("");
   const [cals, setCals] = useState("");
   const [prot, setProt] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fats, setFats] = useState("");
+
+  // Determine if a logging action has begun to trigger input warning highlights
+  const entryHasBegun = useMemo(() => {
+    return foodName.trim() !== "" || cals !== "" || prot !== "" || carbs !== "" || fats !== "";
+  }, [foodName, cals, prot, carbs, fats]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,12 +51,10 @@ export default function MacroTracker() {
       try {
         const res = await fetch('/api/sync');
         const parsed = await res.json();
-        
-        // Defensive layer against unexpected error objects or connection failures
         if (parsed && !parsed.error) {
           setData(parsed);
         } else {
-          setAlertMsg(parsed.error || "Unexpected JSON format.");
+          setAlertMsg(parsed.error || "Could not resolve data schema.");
           setData({});
         }
       } catch (e) {
@@ -81,15 +83,6 @@ export default function MacroTracker() {
     }
   };
 
-  const updateMacrosAndRecalculateCals = (p: string, c: string, f: string) => {
-    setProt(p); setCarbs(c); setFats(f);
-    const pNum = Number(p) || 0;
-    const cNum = Number(c) || 0;
-    const fNum = Number(f) || 0;
-    const targetCals = (pNum * 4) + (cNum * 4) + (fNum * 9);
-    setCals(targetCals > 0 ? targetCals.toString() : "");
-  };
-
   const getDayTotals = (dateStr: string) => {
     const dayData = data && typeof data === 'object' ? data[dateStr] : null;
     const items = dayData?.items || [];
@@ -105,11 +98,8 @@ export default function MacroTracker() {
     );
   };
 
-  // Speed Dial logic: Only render explicitly populated keys + Today
   const gridDates = useMemo(() => {
     const dates = new Set<string>();
-    
-    // Always guarantee Today exists as a default empty slate tile
     const todayStr = new Date().toISOString().split('T')[0];
     dates.add(todayStr);
 
@@ -118,16 +108,13 @@ export default function MacroTracker() {
         if (data[key]) dates.add(key);
       });
     }
-
     return Array.from(dates).sort((a, b) => b.localeCompare(a));
   }, [data]);
 
   const handleCreateExplicitDay = () => {
     if (!targetCreateDate) return;
     const nextData = { ...data };
-    if (!nextData[targetCreateDate]) {
-      nextData[targetCreateDate] = { items: [] };
-    }
+    if (!nextData[targetCreateDate]) nextData[targetCreateDate] = { items: [] };
     persist(nextData);
     setSelectedDate(targetCreateDate);
     setShowAddModal(false);
@@ -198,11 +185,7 @@ export default function MacroTracker() {
                 const hasItems = data[date] && data[date].items && data[date].items.length > 0;
 
                 return (
-                  <div 
-                    key={date} 
-                    className={`tile-card ${hasItems || isToday ? 'active' : 'empty'}`} 
-                    onClick={() => setSelectedDate(date)}
-                  >
+                  <div key={date} className={`tile-card ${hasItems || isToday ? 'active' : 'empty'}`} onClick={() => setSelectedDate(date)}>
                     <div className="tile-date">{isToday ? "Today" : date}</div>
                     <div className="tile-main-cal">{totals.calories} <span style={{fontSize: '0.65rem'}}>kcal</span></div>
                     <div className="tile-macros">
@@ -214,7 +197,6 @@ export default function MacroTracker() {
                 );
               })}
 
-              {/* speeddial style action trigger */}
               <div className="tile-card add-new-tile" onClick={() => setShowAddModal(true)}>
                 <span className="add-plus-icon">+</span>
                 <span className="add-plus-text">Add Day</span>
@@ -226,12 +208,7 @@ export default function MacroTracker() {
             <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
               <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <h3 style={{marginTop: 0, marginBottom: '10px'}}>Log Custom Date</h3>
-                <input 
-                  type="date" 
-                  className="text-input" 
-                  value={targetCreateDate} 
-                  onChange={e => setTargetCreateDate(e.target.value)} 
-                />
+                <input type="date" className="text-input" value={targetCreateDate} onChange={e => setTargetCreateDate(e.target.value)} />
                 <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
                   <button className="btn-primary" style={{flex: 1}} onClick={handleCreateExplicitDay}>Open Grid Slot</button>
                   <button className="btn-ghost" style={{margin: 0}} onClick={() => setShowAddModal(false)}>Cancel</button>
@@ -247,11 +224,7 @@ export default function MacroTracker() {
           
           <div className="summary-banner">
             <label className="field-label">Select Target Strategy Preset</label>
-            <select 
-              className="select-input" 
-              value={currentPresetKey} 
-              onChange={e => handlePresetChange(e.target.value)}
-            >
+            <select className="select-input" value={currentPresetKey} onChange={e => handlePresetChange(e.target.value)}>
               <option value="">No Strategy Selected</option>
               <option value="rest">{PRESETS.rest.label}</option>
               <option value="train">{PRESETS.train.label}</option>
@@ -273,13 +246,43 @@ export default function MacroTracker() {
 
           <div className="editor-card">
             <label className="field-label">Log Custom Entry</label>
-            <input type="text" placeholder="Food item details" value={foodName} onChange={e => setFoodName(e.target.value)} className="text-input" />
+            <input 
+              type="text" 
+              placeholder="Food item details" 
+              value={foodName} 
+              onChange={e => setFoodName(e.target.value)} 
+              className={`text-input ${entryHasBegun && !foodName.trim() ? 'highlight-warn' : ''}`} 
+            />
             
             <div className="macro-input-row">
-              <input type="number" placeholder="Kcal" value={cals} onChange={e => setCals(e.target.value)} />
-              <input type="number" placeholder="P (g)" value={prot} onChange={e => updateMacrosAndRecalculateCals(e.target.value, carbs, fats)} />
-              <input type="number" placeholder="C (g)" value={carbs} onChange={e => updateMacrosAndRecalculateCals(prot, e.target.value, fats)} />
-              <input type="number" placeholder="F (g)" value={fats} onChange={e => updateMacrosAndRecalculateCals(prot, carbs, e.target.value)} />
+              <input 
+                type="number" 
+                placeholder="Kcal" 
+                value={cals} 
+                onChange={e => setCals(e.target.value)} 
+                className={entryHasBegun && !cals ? 'highlight-warn' : ''}
+              />
+              <input 
+                type="number" 
+                placeholder="P (g)" 
+                value={prot} 
+                onChange={e => setProt(e.target.value)} 
+                className={entryHasBegun && !prot ? 'highlight-warn' : ''}
+              />
+              <input 
+                type="number" 
+                placeholder="C (g)" 
+                value={carbs} 
+                onChange={e => setCarbs(e.target.value)} 
+                className={entryHasBegun && !carbs ? 'highlight-warn' : ''}
+              />
+              <input 
+                type="number" 
+                placeholder="F (g)" 
+                value={fats} 
+                onChange={e => setFats(e.target.value)} 
+                className={entryHasBegun && !fats ? 'highlight-warn' : ''}
+              />
             </div>
             
             <button className="btn-primary" style={{ width: '100%', marginTop: '12px' }} onClick={handleAddItem}>Add Entry</button>

@@ -309,3 +309,8 @@ body {
   width: 90%;
   max-width: 320px;
 }
+/* Warning highlight indicator for uncompleted logging items */
+.highlight-warn {
+  background-color: #3a351c !important;
+  border-color: #ffc107 !important;
+}

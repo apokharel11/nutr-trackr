@@ -1,14 +1,17 @@
 import { Redis } from '@upstash/redis';
 import { NextResponse } from 'next/server';
 
-// Automatically reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from your environment variables
-const redis = Redis.fromEnv();
+// Explicitly pass your project's custom environment variables
+const redis = new Redis({
+  url: process.env.NUTR_TRACKR_KV_REST_API_URL || '',
+  token: process.env.NUTR_TRACKR_KV_REST_API_TOKEN || '',
+});
+
 const SYNC_KEY = 'macro_tracker_data_v1';
 
 export async function GET() {
   try {
     const data = await redis.get(SYNC_KEY);
-    // Upstash implicitly parses the JSON string back into an object
     return NextResponse.json(data ?? {});
   } catch (error: any) {
     console.error("Upstash Fetch Error:", error);
@@ -19,7 +22,6 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // Upstash automatically handles stringifying objects safely
     await redis.set(SYNC_KEY, body);
     return NextResponse.json({ success: true });
   } catch (error: any) {
